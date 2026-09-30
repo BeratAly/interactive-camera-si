@@ -1,0 +1,20 @@
+# THE MACHINE — Phase 0 dependency plan (NOT pip-installable yet: names/versions
+# are pinned when Phase 1 code is written; each entry lists its WHY).
+#
+# Core (Phase 1):
+# PySide6>=6.6          -> desktop GUI (Qt widgets, QPainter HUD overlays, QThread)
+# opencv-python>=4.9    -> camera capture, image ops, demo-mode video playback
+# numpy>=1.26           -> frame/array numerics
+# pyyaml>=6.0           -> config.yaml loading
+# python-dotenv>=1.0    -> .env secrets loading (API keys never hardcoded)
+# psutil>=5.9           -> system monitor panel (CPU/RAM), perf counters
+#
+# Vision models (Phase 2-6, ONNX path — one-time model files into data/models/):
+# onnxruntime>=1.17     -> CPU inference for face detect/recognize (+ CUDA EP optional)
+#
+# Object detection & tracking (Phase 4-5):
+# ultralytics>=8.1      -> YOLO-nano + ByteTrack (pulls torch; alternative: pure ONNX export)
+#
+# OCR (Phase 11):       rapidocr-onnxruntime
+# Audio (Phase 8):      faster-whisper (STT), sounddevice, openwakeword, piper-tts
+# Tests (all phases):   pytest, pytest-qt, pytest-mock
