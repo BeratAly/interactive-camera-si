@@ -1,13 +1,5 @@
-# Compiled/Binary files
-__pycache__/
-*.pyc
-
-# Environment
-.env
-.env.local
-*.env.*node_modules/
+(empty)node_modules/
 .next/
 dist/
 build/
 *.log
-node_modules/

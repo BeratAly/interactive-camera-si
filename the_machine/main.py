@@ -71,6 +71,13 @@ def apply_overrides(settings: Settings, args: argparse.Namespace) -> Settings:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+
+    # First-run wizard: ask for AI provider / API key in the terminal,
+    # save to gitignored .env. Skips silently when already configured or
+    # when stdin is not a TTY (CI). Use --no-ask to force-skip.
+    from the_machine.config.bootstrap import run_first_time_setup
+    run_first_time_setup()
+
     settings = apply_overrides(load_settings(), args)
 
     # screenshot mode implies DEMO MODE (fully deterministic, no hardware)

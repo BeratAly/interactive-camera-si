@@ -1,0 +1,16 @@
+# THE MACHINE — runtime dependencies (Phase 1 + AI Core).
+# WHY each package is required (§89):
+PySide6>=6.6          # desktop GUI: Qt widgets, QPainter HUD overlays, QThread workers
+opencv-python>=4.9    # camera capture, image ops, Haar face detection, demo video playback
+numpy>=1.26           # frame/array numerics
+pyyaml>=6.0           # config.yaml loading
+
+# NOTE: no other runtime deps are needed yet.
+#   - LLM client uses Python stdlib (urllib) — zero extra packages (§49).
+#   - .env loader is hand-rolled (settings.load_dotenv) — no python-dotenv needed.
+# Future phases add ONLY when their code lands (see docs/ARCHITECTURE.md roadmap):
+#   psutil        -> system monitor panel (CPU/RAM)          [Phase 3 polish]
+#   onnxruntime   -> high-accuracy ONNX face detectors       [Phase 2 upgrade]
+#   ultralytics   -> YOLO object detection + ByteTrack       [Phase 4-5]
+#   rapidocr-onnxruntime                                     [OCR phase]
+#   faster-whisper, sounddevice, openwakeword, piper-tts     [Voice phase]
