@@ -20,9 +20,12 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from the_machine.config.settings import Settings, load_settings
+from the_machine.core.context_engine import ContextEngine
 from the_machine.core.event_bus import EventBus
 from the_machine.core.logger import setup_logging
 from the_machine.core.state_manager import StateManager, SystemState
+from the_machine.ai.ai_core import AICore
+from the_machine.ai.providers import build_provider
 from the_machine.ui.main_window import MainWindow
 from the_machine.vision.camera import CameraWorker
 from the_machine.vision.pipeline import VisionPipeline
@@ -93,8 +96,20 @@ def main(argv: list[str] | None = None) -> int:
     pipeline.start_pipeline()
     log.info("[OK] Configuration / Camera / Vision Engine")
 
+    # AI Core (§15): provider from .env; NullProvider => offline local answers.
+    context = ContextEngine(bus, pipeline, state)
+    context.set_fps_source(camera)
+    provider = build_provider(settings.secrets)
+    ai_core = AICore(bus, state, context, provider)
+    ai_core.start_core()
+    if provider.name == "null":
+        log.info("[OK] AI Core (offline local mode — vision commands work; "
+                 "configure a provider in .env for open conversation)")
+    else:
+        log.info("[OK] AI Core (provider: %s)", provider.name)
+
     app = QApplication(sys.argv)
-    window = MainWindow(settings, bus, camera, pipeline, state)
+    window = MainWindow(settings, bus, camera, pipeline, state, ai_core=ai_core)
 
     if args.screenshot:
         # Headless verification mode: force DEMO source, render N seconds,

@@ -1,16 +1,17 @@
-"""Side panels (§21): SYSTEM status, VISION stats, EVENT LOG.
+"""Side panels (§21): SYSTEM status, VISION stats, EVENT LOG, AI CHAT.
 
 All updates arrive via Qt signals from the main window (GUI thread only).
 Event log shows REAL events fed by the EventBus — no fake terminal text (§65).
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QVBoxLayout,
@@ -54,7 +55,7 @@ class SystemPanel(QFrame):
 
         self.camera_val = self._val("OFFLINE")
         self.vision_val = self._val("OFFLINE")
-        self.ai_val = self._val("NOT LOADED")   # phase 7 will flip this
+        self.ai_val = self._val("STANDBY")
         self.state_val = self._val("OFFLINE")
         lay.addLayout(_kv_row("CAMERA", self.camera_val))
         lay.addLayout(_kv_row("VISION", self.vision_val))
@@ -72,13 +73,70 @@ class SystemPanel(QFrame):
         lbl = mapping.get(name)
         if lbl is None:
             return
-        lbl.setText(text)
         color = self._theme.ok if online else (
             self._theme.err if "ERROR" in text.upper() or "OFFLINE" in text.upper()
             else self._theme.text_dim)
         dot = "●" if online else "○"
         lbl.setText(f"{dot} {text}")
         lbl.setStyleSheet(f"color: {color.name() if hasattr(color,'name') else color}; font-weight: bold;")
+
+
+class ChatPanel(QFrame):
+    """AI conversation panel (§45). Emits user_text on Enter — the main
+    window forwards it to AICore.process_command(); replies arrive via
+    add_message(). The GUI thread never waits for the AI."""
+
+    user_text = Signal(str)
+
+    MAX_ROWS = 200
+
+    def __init__(self, theme: Theme, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._theme = theme
+        frame, lay = _panel("AI", theme)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(frame)
+
+        self.log = QListWidget()
+        self.log.setObjectName("EventLog")
+        self.log.setFont(QFont("Consolas", 9))
+        lay.addWidget(self.log, stretch=1)
+
+        row = QHBoxLayout()
+        self.input = QLineEdit()
+        self.input.setPlaceholderText(
+            'Ask the Machine…  ("What do you see?" / "Ne görüyorsun?")')
+        self.input.returnPressed.connect(self._submit)
+        row.addWidget(self.input, stretch=1)
+        lay.addLayout(row)
+
+        self.add_message("machine",
+                         "Machine online. State a query or command.", dim=True)
+
+    def _submit(self) -> None:
+        text = self.input.text().strip()
+        if not text:
+            return
+        self.input.clear()
+        self.user_text.emit(text)
+
+    def add_message(self, role: str, content: str, dim: bool = False) -> None:
+        prefix = "USER  > " if role == "user" else "MACHINE < "
+        item = QListWidgetItem(prefix + content)
+        if role == "user":
+            item.setForeground(QColor(self._theme.warn))
+        elif dim:
+            item.setForeground(QColor(self._theme.text_dim))
+        else:
+            item.setForeground(QColor(self._theme.accent))
+        self.log.addItem(item)
+        while self.log.count() > self.MAX_ROWS:
+            self.log.takeItem(0)
+        self.log.scrollToBottom()
+
+    def set_thinking(self, thinking: bool) -> None:
+        pass  # state indicator lives in SYSTEM panel; kept for API clarity
 
 
 class VisionPanel(QFrame):

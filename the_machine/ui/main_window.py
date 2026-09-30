@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from the_machine.config.settings import Settings
 from the_machine.core.event_bus import (
+    AI_RESPONSE,
     CAMERA_CONNECTED,
     CAMERA_DISCONNECTED,
     CAMERA_ERROR,
@@ -30,12 +31,13 @@ from the_machine.core.event_bus import (
     FACE_LOST,
     STATE_CHANGED,
     SYSTEM_ERROR,
+    USER_SPEECH,
     EventBus,
     MachineEvent,
 )
 from the_machine.core.state_manager import StateManager, SystemState
 from the_machine.ui.camera_view import CameraView
-from the_machine.ui.panels import EventLogPanel, SystemPanel, VisionPanel
+from the_machine.ui.panels import ChatPanel, EventLogPanel, SystemPanel, VisionPanel
 from the_machine.ui.themes import Theme, build_qss
 from the_machine.vision.camera import CameraWorker
 from the_machine.vision.pipeline import VisionPipeline
@@ -46,13 +48,14 @@ logger = logging.getLogger("machine.ui")
 class MainWindow(QMainWindow):
     def __init__(self, settings: Settings, bus: EventBus,
                  camera: CameraWorker, pipeline: VisionPipeline,
-                 state: StateManager) -> None:
+                 state: StateManager, ai_core=None) -> None:
         super().__init__()
         self._settings = settings
         self._bus = bus
         self._camera = camera
         self._pipeline = pipeline
         self._state = state
+        self._ai = ai_core
         self._theme = Theme.by_name(settings.ui.theme)
 
         self.setWindowTitle("THE MACHINE")
@@ -106,7 +109,11 @@ class MainWindow(QMainWindow):
         self.vision_panel = VisionPanel(self._theme)
         sidebar.addWidget(self.system_panel)
         sidebar.addWidget(self.vision_panel)
-        sidebar.addStretch(1)
+
+        # AI chat (§45): takes the remaining sidebar height
+        self.chat_panel = ChatPanel(self._theme)
+        self.chat_panel.user_text.connect(self._on_user_query)
+        sidebar.addWidget(self.chat_panel, stretch=1)
 
         controls = QHBoxLayout()
         self.btn_camera = QPushButton("CAMERA: ON")
@@ -118,19 +125,32 @@ class MainWindow(QMainWindow):
 
         # event log across bottom
         self.event_panel = EventLogPanel(self._theme)
-        self.event_panel.setFixedHeight(150)
+        self.event_panel.setFixedHeight(120)
         root.addWidget(self.event_panel)
 
         self.setCentralWidget(central)
+        provider_note = ""
+        if self._ai is not None and getattr(self._ai, "is_llm_active", False):
+            provider_note = f"  |  AI PROVIDER: {self._ai.provider_name.upper()}"
         self.statusBar().showMessage(
-            "LOCAL PROCESSING ONLY  |  FRAMES NOT SAVED  |  CLOUD OFF")
+            "LOCAL PROCESSING ONLY  |  FRAMES NOT SAVED  |  CLOUD OFF"
+            + provider_note)
 
     # --------------------------------------------------------------- wiring
     def _wire_events(self) -> None:
         """Bus handlers run on worker threads: enqueue only, never touch Qt."""
         for name in (CAMERA_CONNECTED, CAMERA_DISCONNECTED, CAMERA_ERROR,
-                     FACE_DETECTED, FACE_LOST, STATE_CHANGED, SYSTEM_ERROR):
+                     FACE_DETECTED, FACE_LOST, STATE_CHANGED, SYSTEM_ERROR,
+                     USER_SPEECH, AI_RESPONSE):
             self._bus.subscribe(name, self._enqueue)
+
+    def _on_user_query(self, text: str) -> None:
+        """ChatPanel Enter -> AI worker thread. GUI never blocks (§29)."""
+        if self._ai is not None:
+            self._ai.process_command(text)
+        else:
+            self.chat_panel.add_message("machine",
+                                        "AI CORE OFFLINE.", dim=True)
 
     def _enqueue(self, event: MachineEvent) -> None:
         self._event_queue.append(event)   # list.append is atomic under GIL
@@ -169,11 +189,19 @@ class MainWindow(QMainWindow):
             self.system_panel.set_status("CAMERA", "ONLINE", True)
             self.system_panel.set_status("VISION", "ONLINE", True)
             self._status_label.setText("SYSTEM ONLINE")
+            if self._ai is not None:
+                label = "ONLINE" if self._ai.is_llm_active else "LOCAL MODE"
+                self.system_panel.set_status("AI", label, True)
         elif ev.name == CAMERA_DISCONNECTED:
             self.camera_view.set_online(False, "CAMERA SIGNAL LOST — RECONNECTING…")
             self.system_panel.set_status("CAMERA", "OFFLINE", False)
             self.system_panel.set_status("VISION", "OFFLINE", False)
             self.vision_panel.set_offline()
+            # AI core survives camera loss (§32): vision answers degrade only
+            if self._ai is not None and \
+                    self._state.state is not SystemState.THINKING:
+                label = "ONLINE" if self._ai.is_llm_active else "LOCAL MODE"
+                self.system_panel.set_status("AI", label, True)
         elif ev.name == CAMERA_ERROR:
             self.camera_view.set_message(p.get("message", "CAMERA ERROR"))
             self.system_panel.set_status("CAMERA", "ERROR", False)
@@ -181,10 +209,23 @@ class MainWindow(QMainWindow):
             new = p.get("new", "")
             self.system_panel.set_status("STATE", new,
                                          new not in ("OFFLINE", "ERROR"))
+            # AI core status follows the thinking lifecycle (§64)
+            if self._ai is not None:
+                if new == SystemState.THINKING.value:
+                    self.system_panel.set_status("AI", "THINKING…", True)
+                elif new in (SystemState.READY.value,
+                             SystemState.LISTENING.value):
+                    label = "ONLINE" if self._ai.is_llm_active else \
+                        "LOCAL MODE"
+                    self.system_panel.set_status("AI", label, True)
             if new == SystemState.READY.value:
                 self._status_label.setText("SYSTEM ONLINE")
             elif new == SystemState.ERROR.value:
                 self._status_label.setText("SYSTEM ERROR")
+        elif ev.name == USER_SPEECH:
+            self.chat_panel.add_message("user", p.get("text", ""))
+        elif ev.name == AI_RESPONSE:
+            self.chat_panel.add_message("machine", p.get("text", ""))
         elif ev.name == SYSTEM_ERROR:
             self.system_panel.set_status("STATE", "ERROR", False)
 
@@ -211,6 +252,11 @@ class MainWindow(QMainWindow):
         """Clean shutdown order: pump -> pipeline -> camera. Never crash (§82)."""
         logger.info("shutting down")
         self._pump.stop()
+        try:
+            if self._ai is not None:
+                self._ai.close()
+        except Exception:
+            logger.exception("ai core shutdown error")
         try:
             self._pipeline.close()
         except Exception:
