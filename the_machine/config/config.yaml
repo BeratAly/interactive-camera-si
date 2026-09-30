@@ -1,0 +1,30 @@
+# THE MACHINE — default configuration (safe by default).
+# User overrides go in config.local.yaml (git-ignored), NOT here.
+
+camera:
+  device: 0            # webcam index, or a video file path string
+  width: 1280
+  height: 720
+  fps: 30
+  demo_video: ""       # set to a .mp4 path for DEMO MODE (no camera needed)
+  reconnect_interval_s: 3.0
+
+vision:
+  face_detection: true
+  detect_fps: 10       # inference FPS (capture stays at camera FPS)
+  min_face_size_px: 60
+  detector: haar       # haar (zero-download) | onnx (phase 2+)
+  object_detection: false   # phase 4
+  ocr: false                # phase 5
+
+ui:
+  theme: green         # green | amber | cyan
+  fullscreen: false
+  debug_mode: false    # developer mode: latency / queue stats
+  scanlines: true
+
+privacy:
+  save_frames: false   # HARD OFF by default (§8)
+  save_audio: false
+  cloud_ai: false
+  screen_analysis: false
