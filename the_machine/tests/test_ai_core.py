@@ -165,6 +165,42 @@ def test_build_provider_default_null(monkeypatch):
     assert isinstance(build_provider(Secrets()), NullProvider)
 
 
+def test_build_provider_nvidia_alias(monkeypatch):
+    """AI_PROVIDER=nvidia -> free NVIDIA NIM endpoint, default free model."""
+    monkeypatch.setenv("AI_PROVIDER", "nvidia")
+    from the_machine.config.settings import Secrets
+    p = build_provider(Secrets(ai_api_key="nvapi-test"))
+    assert isinstance(p, OpenAICompatProvider)
+    assert p.available()
+    # base url + default model must point at NIM's free endpoint
+    assert p._base == "https://integrate.api.nvidia.com/v1"
+    assert "nemotron" in p._model or "llama" in p._model
+
+
+def test_build_provider_nvidia_autodetect(monkeypatch):
+    """No AI_PROVIDER set, but AI_BASE_URL is NVIDIA -> still wired correctly."""
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    from the_machine.config.settings import Secrets
+    p = build_provider(Secrets(
+        ai_api_key="nvapi-test",
+        ai_base_url="https://integrate.api.nvidia.com/v1"))
+    assert isinstance(p, OpenAICompatProvider)
+    assert p._base.endswith("/v1")
+
+
+def test_build_provider_key_never_in_repr():
+    """Secrets must not leak via provider str()/repr() (§33/§39)."""
+    p = OpenAICompatProvider("https://x/v1", "sk-SUPERSECRET", "m")
+    assert "SUPERSECRET" not in repr(p)
+    assert "SUPERSECRET" not in str(p)
+    # error messages must also never echo the key back
+    bad = OpenAICompatProvider("", "", "m")
+    try:
+        bad.generate([{"role": "user", "content": "hi"}])
+    except ProviderError as e:
+        assert "SUPERSECRET" not in str(e)
+
+
 def test_http_provider_unreachable_raises_provider_error():
     # port 1 is reliably refused; must raise ProviderError, never OSError
     p = OpenAICompatProvider("http://127.0.0.1:1", "k", "m", timeout_s=1)

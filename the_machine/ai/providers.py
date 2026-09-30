@@ -2,9 +2,17 @@
 
     NullProvider     — default. Fully offline; deterministic answers from the
                        command router + real vision context. No install needed.
-    OpenAICompat     — any OpenAI-compatible HTTP API (OpenAI, OpenRouter,
-                       Together…). Key comes ONLY from .env / environment.
+    OpenAICompat     — any OpenAI-compatible HTTP API (OpenAI, NVIDIA NIM,
+                       OpenRouter, Groq, Cerebras, Together…). Key comes ONLY
+                       from .env / environment.
     OllamaProvider   — local LLM via Ollama's OpenAI-compatible endpoint.
+
+NVIDIA NIM note: it is just an OpenAI-compatible endpoint, so use
+    AI_PROVIDER=openai_compat
+    AI_BASE_URL=https://integrate.api.nvidia.com/v1
+    AI_API_KEY=<nvapi-...>
+    AI_MODEL=nvidia/llama-3.1-nemotron-nano-8b-v1   (free tier)
+No dedicated provider class is needed — one abstraction covers all vendors (§49).
 
 Secrets are never logged or serialized. All providers return plain text and
 raise ProviderError on failure so the brain can fall back gracefully (§32).
@@ -121,6 +129,14 @@ def build_provider(secrets) -> AIProvider:
     base = secrets.ai_base_url
     model = secrets.ai_model
 
+    # convenience alias: AI_PROVIDER=nvidia behaves like openai_compat pointed
+    # at NVIDIA NIM's free endpoint (build.nvidia.com -> "Get API Key").
+    if kind in ("nvidia", "nim"):
+        return OpenAICompatProvider(
+            base or "https://integrate.api.nvidia.com/v1",
+            secrets.ai_api_key,
+            model or "nvidia/llama-3.1-nemotron-nano-8b-v1",
+        )
     if kind == "ollama":
         host = base or os.environ.get("OLLAMA_HOST", "http://localhost:11434")
         return OllamaProvider(host, model or "llama3.2")
@@ -131,6 +147,9 @@ def build_provider(secrets) -> AIProvider:
     # auto-detect
     if "localhost" in base.lower() or "127.0.0.1" in base:
         return OllamaProvider(base, model or "llama3.2")
+    if "nvidia.com" in base.lower():
+        return OpenAICompatProvider(base, secrets.ai_api_key,
+                                    model or "nvidia/llama-3.1-nemotron-nano-8b-v1")
     if secrets.ai_api_key and base:
         return OpenAICompatProvider(base, secrets.ai_api_key,
                                     model or "gpt-4o-mini")
