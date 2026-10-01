@@ -40,7 +40,7 @@ class VisionConfig:
     face_detection: bool = True
     detect_fps: int = 10          # inference runs slower than capture (§I)
     min_face_size_px: int = 60
-    detector: str = "haar"        # haar | onnx (phase 2+)
+    detector: str = "auto"         # auto | onnx (YuNet) | haar
     object_detection: bool = False  # phase 4
     ocr: bool = False               # phase 5
 
@@ -126,7 +126,7 @@ def load_settings(config_dir: Path | None = None) -> Settings:
             face_detection=bool(_get(raw, "vision.face_detection", True)),
             detect_fps=int(_get(raw, "vision.detect_fps", 10)),
             min_face_size_px=int(_get(raw, "vision.min_face_size_px", 60)),
-            detector=str(_get(raw, "vision.detector", "haar")),
+            detector=str(_get(raw, "vision.detector", "auto")),
             object_detection=bool(_get(raw, "vision.object_detection", False)),
             ocr=bool(_get(raw, "vision.ocr", False)),
         ),

@@ -13,7 +13,7 @@ vision:
   face_detection: true
   detect_fps: 10       # inference FPS (capture stays at camera FPS)
   min_face_size_px: 60
-  detector: haar       # haar (zero-download) | onnx (phase 2+)
+  detector: auto       # auto (YuNet ONNX, Haar fallback) | onnx | haar
   object_detection: false   # phase 4
   ocr: false                # phase 5
 
