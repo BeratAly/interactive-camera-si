@@ -1,6 +1,1 @@
-# Compiled and build artifacts
-__pycache__/
-*.pyc
-
-# Model files (large binary assets)
-the_machine/data/models/
+(empty)

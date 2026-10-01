@@ -22,6 +22,7 @@ from the_machine.core.event_bus import (
     CAMERA_DISCONNECTED,
     FACE_DETECTED,
     FACE_LOST,
+    FACE_RECOGNIZED,
     EventPriority,
     EventBus,
 )
@@ -43,7 +44,8 @@ class PipelineSnapshot:
 
 
 class VisionPipeline(threading.Thread):
-    def __init__(self, settings: Settings, bus: EventBus, camera: CameraWorker) -> None:
+    def __init__(self, settings: Settings, bus: EventBus, camera: CameraWorker,
+                 recognition=None) -> None:
         super().__init__(name="vision-pipeline", daemon=True)
         self._settings = settings
         self._bus = bus
@@ -52,12 +54,14 @@ class VisionPipeline(threading.Thread):
                                   settings.paths.models_dir,
                                   settings.vision.min_face_size_px)
         self._engine = FaceDetectorEngine(detector)
+        self._recognition = recognition      # optional FaceRecognitionService
         self._tracker = FaceTracker()
         self._lock = threading.Lock()
         self._snap = PipelineSnapshot()
         self._running = threading.Event()
         self._last_seq = -1
         self._known_track_ids: set[int] = set()
+        self._recognized_ids: dict[int, str] = {}   # track_id -> identity
         self._detect_times: list[float] = []      # rolling window for detect fps
         self._drops = 0
 
@@ -102,6 +106,7 @@ class VisionPipeline(threading.Thread):
             if now - last_detect >= interval:
                 last_detect = now
                 result = self._engine.run(frame)
+                self._apply_recognition(frame, result.faces)
                 dt = min(max(dt_frame, 0.001), 0.5)
                 tracks = self._tracker.update(result.faces, dt)
                 self._publish_face_events(tracks)
@@ -135,6 +140,27 @@ class VisionPipeline(threading.Thread):
         span = ts[-1] - ts[0]
         return round((len(ts) - 1) / span, 1) if span > 0 else 0.0
 
+    def _apply_recognition(self, frame: np.ndarray, faces) -> None:
+        """Optional RECOGNITION pass (§7/§35): fill identity/similarity on
+        detections BEFORE tracking. Never blocks; degrades to UNKNOWN."""
+        rec = self._recognition
+        if rec is None or not rec.enabled or not faces:
+            return
+        embedder = rec._embedder  # service owns the embedder
+        for f in faces[:4]:       # cap cost per frame
+            try:
+                vec = embedder.embed(frame, (f.x, f.y, f.w, f.h), f.landmarks)
+            except Exception:
+                vec = None
+            if vec is None:
+                continue
+            match = rec.recognize(vec)
+            if match is not None:
+                f.identity = match.name
+                f.similarity = match.similarity
+                # feed an active enrollment session if one exists
+                rec.offer_candidate(vec, f.confidence)
+
     def _publish_face_events(self, tracks: list[TrackedFace]) -> None:
         current = {t.track_id for t in tracks}
         new_ids = current - self._known_track_ids
@@ -146,11 +172,23 @@ class VisionPipeline(threading.Thread):
             logger.info("face detected track=%d conf=%.2f", tid, tr.confidence)
         for tid in sorted(gone_ids):
             self._bus.emit(FACE_LOST, track_id=tid)
+            self._recognized_ids.pop(tid, None)
+        # emit FACE_RECOGNIZED once per track when identity first appears
+        for tr in tracks:
+            if tr.identity != "UNKNOWN" and \
+                    self._recognized_ids.get(tr.track_id) != tr.identity:
+                self._recognized_ids[tr.track_id] = tr.identity
+                self._bus.emit(FACE_RECOGNIZED, priority=EventPriority.HIGH,
+                               track_id=tr.track_id, identity=tr.identity,
+                               similarity=round(tr.similarity, 3))
+                logger.info("recognized %s (sim %.2f) track=%d",
+                            tr.identity, tr.similarity, tr.track_id)
         self._known_track_ids = current
 
     def _on_camera_gone(self, event) -> None:
         """Session-scoped IDs die with the camera session (§10)."""
         self._tracker.reset()
         self._known_track_ids.clear()
+        self._recognized_ids.clear()
         with self._lock:
             self._snap = PipelineSnapshot()

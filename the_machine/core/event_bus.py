@@ -38,6 +38,10 @@ USER_SPEECH = "USER_SPEECH"               # phase 8
 AI_RESPONSE = "AI_RESPONSE"               # phase 7
 SYSTEM_ERROR = "SYSTEM_ERROR"
 STATE_CHANGED = "STATE_CHANGED"
+CAMERA_PAUSED = "CAMERA_PAUSED"           # user toggle (not a failure)
+CAMERA_RESUMED = "CAMERA_RESUMED"
+PROFILE_LEARNED = "PROFILE_LEARNED"       # enrollment completed (§35)
+DATA_CLEARED = "DATA_CLEARED"             # §55 right-to-be-forgotten
 
 
 @dataclass(frozen=True)
