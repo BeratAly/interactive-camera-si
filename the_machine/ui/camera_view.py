@@ -15,7 +15,7 @@ import time
 import numpy as np
 from PySide6.QtCore import QRect, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from the_machine.ui.themes import Theme
 from the_machine.vision.tracker import TrackedFace
@@ -36,7 +36,9 @@ class CameraView(QWidget):
         self._theme = theme
         self._show_scanlines = show_scanlines
         self.setMinimumSize(480, 270)
-        self.setSizePolicy(self.sizePolicy().Expanding, self.sizePolicy().Expanding)
+        # Enum accessed via the class (PySide6 6.5+ removed instance-level enum
+        # attribute access; works on all supported versions this way).
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._pixmap: QPixmap | None = None
         self._frame_size = (0, 0)          # source frame w,h

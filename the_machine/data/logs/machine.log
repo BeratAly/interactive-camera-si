@@ -1,0 +1,42 @@
+2026-10-01 09:38:52,786 INFO    machine.startup: INITIALIZING MACHINE…
+2026-10-01 09:38:52,789 INFO    machine.vision.camera: synthetic demo source started
+2026-10-01 09:38:52,789 INFO    machine.startup: [OK] Configuration / Camera / Vision Engine
+2026-10-01 09:38:52,791 INFO    machine.startup: [OK] AI Core (provider: openai_compat)
+2026-10-01 09:38:52,835 INFO    machine.startup: SYSTEM READY
+2026-10-01 09:39:20,669 INFO    machine.startup: INITIALIZING MACHINE…
+2026-10-01 09:39:20,670 INFO    machine.vision.camera: synthetic demo source started
+2026-10-01 09:39:20,672 INFO    machine.startup: [OK] Configuration / Camera / Vision Engine
+2026-10-01 09:39:20,673 INFO    machine.startup: [OK] AI Core (provider: openai_compat)
+2026-10-01 09:39:23,854 INFO    machine.startup: screenshot saved=True -> /tmp/ui.png
+2026-10-01 09:39:23,854 INFO    machine.ui: shutting down
+2026-10-01 09:40:21,778 INFO    machine.startup: INITIALIZING MACHINE…
+2026-10-01 09:40:21,778 INFO    machine.vision.face: Downloading YuNet face model (~230 KB, one-time)…
+2026-10-01 09:40:22,176 INFO    machine.vision.face: YuNet model ready: /workspace/the_machine/data/models/face_detection_yunet_2023mar.onnx
+2026-10-01 09:40:22,177 INFO    machine.startup: [OK] Configuration / Camera / Vision Engine
+2026-10-01 09:40:22,178 INFO    machine.vision.camera: synthetic demo source started
+2026-10-01 09:40:22,179 INFO    machine.startup: [OK] AI Core (provider: openai_compat)
+2026-10-01 09:40:22,294 WARNING machine.vision.face: YuNet detection failed (OpenCV(5.0.0) :-1: error: (-5:Bad argument) in function 'FaceDetectorYN_create'
+> Overload resolution failed:
+>  - Argument 'top_k' is required to be an integer
+>  - Can't parse 'input_size'. Input argument doesn't provide sequence protocol
+) — disabling
+2026-10-01 09:40:25,365 INFO    machine.startup: screenshot saved=True -> /tmp/ui.png
+2026-10-01 09:40:25,365 INFO    machine.ui: shutting down
+2026-10-01 09:40:43,439 INFO    machine.startup: INITIALIZING MACHINE…
+2026-10-01 09:40:43,440 INFO    machine.vision.camera: synthetic demo source started
+2026-10-01 09:40:43,440 INFO    machine.startup: [OK] Configuration / Camera / Vision Engine
+2026-10-01 09:40:43,441 INFO    machine.startup: [OK] AI Core (provider: openai_compat)
+2026-10-01 09:40:46,859 INFO    machine.startup: screenshot saved=True -> /tmp/ui.png
+2026-10-01 09:40:46,866 INFO    machine.ui: shutting down
+2026-10-01 09:40:51,641 INFO    machine.startup: INITIALIZING MACHINE…
+2026-10-01 09:40:51,642 INFO    machine.vision.camera: synthetic demo source started
+2026-10-01 09:40:51,644 INFO    machine.startup: [OK] Configuration / Camera / Vision Engine
+2026-10-01 09:40:51,644 INFO    machine.startup: [OK] AI Core (provider: openai_compat)
+2026-10-01 09:40:55,868 INFO    machine.startup: screenshot saved=True -> /tmp/ui.png
+2026-10-01 09:40:55,876 INFO    machine.ui: shutting down
+2026-10-01 09:40:56,479 INFO    machine.startup: INITIALIZING MACHINE…
+2026-10-01 09:40:56,479 INFO    machine.vision.camera: synthetic demo source started
+2026-10-01 09:40:56,480 INFO    machine.startup: [OK] Configuration / Camera / Vision Engine
+2026-10-01 09:40:56,480 INFO    machine.startup: [OK] AI Core (provider: openai_compat)
+2026-10-01 09:40:59,864 INFO    machine.startup: screenshot saved=True -> /tmp/ui_dbg.png
+2026-10-01 09:40:59,865 INFO    machine.ui: shutting down

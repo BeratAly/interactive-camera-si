@@ -41,6 +41,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--theme", choices=["green", "amber", "cyan"], default=None)
     p.add_argument("--debug", action="store_true", help="developer mode")
     p.add_argument("--fs", action="store_true", help="fullscreen")
+    p.add_argument("--no-ask", action="store_true",
+                   help="skip the first-run AI setup wizard")
     p.add_argument("--screenshot", type=str, default="",
                    help="render N seconds headless and save a PNG (CI / preview)")
     p.add_argument("--seconds", type=float, default=4.0,
