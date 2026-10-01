@@ -5,6 +5,7 @@ Responsibilities:
   - expose real resolution / FPS
   - drop-oldest single-frame buffer (UI always gets the freshest frame)
   - detect disconnection, auto-reconnect with interval
+  - user pause/resume WITHOUT killing the reconnect state machine
   - publish CAMERA_CONNECTED / _DISCONNECTED / CAMERA_ERROR events
 No frames are ever written to disk (privacy.save_frames is enforced upstream;
 this module has no save path at all — safe by construction).
@@ -25,6 +26,8 @@ from the_machine.core.event_bus import (
     CAMERA_CONNECTED,
     CAMERA_DISCONNECTED,
     CAMERA_ERROR,
+    CAMERA_PAUSED,
+    CAMERA_RESUMED,
     EventPriority,
     EventBus,
 )
@@ -52,27 +55,42 @@ class CameraWorker(threading.Thread):
         self._lock = threading.Lock()
         self._latest: np.ndarray | None = None
         self._frame_seq = 0
-        self._running = threading.Event()
+        self._running = threading.Event()      # thread alive?
+        self._enabled = threading.Event()      # capture wanted? (pause toggle)
         self._info: CameraInfo | None = None
         # true measured FPS over a sliding second
         self._timestamps: deque[float] = deque(maxlen=64)
 
     # ---------------------------------------------------------------- control
     def start_capture(self) -> None:
-        if self._running.is_set():
-            return
-        self._running.set()
-        self.start()
+        """Resume/enable capture. Safe to call repeatedly; the worker THREAD
+        is never killed here, so reopening after a pause or disconnect always
+        works (previous bug: stop() joined and terminated the thread)."""
+        self._enabled.set()
+        if not self._running.is_set():
+            self._running.set()
+            self.start()
 
     def stop_capture(self) -> None:
-        self._running.clear()
+        """Pause: release the device but keep the state machine alive."""
+        self._enabled.clear()
+        if self._cap is not None:
+            self._release_cap()
+            self._bus.emit(CAMERA_PAUSED, priority=EventPriority.NORMAL,
+                           source=self._info.source if self._info else "")
+            logger.info("camera paused by user (device released)")
 
     def close(self) -> None:
         """Clean shutdown — app must never crash when camera closes (§82)."""
-        self.stop_capture()
+        self._enabled.clear()
+        self._running.clear()
         if self.is_alive():
             self.join(timeout=2.0)
         self._release_cap()
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled.is_set()
 
     # ------------------------------------------------------------------- data
     def pop_latest_frame(self) -> tuple[np.ndarray | None, int]:
@@ -89,7 +107,13 @@ class CameraWorker(threading.Thread):
 
     @property
     def is_online(self) -> bool:
-        return self._cap is not None and self._cap.isOpened()
+        cap = self._cap
+        if cap is None:
+            return False
+        try:
+            return bool(cap.isOpened())
+        except Exception:
+            return False
 
     def measured_fps(self) -> float:
         ts = list(self._timestamps)
@@ -103,9 +127,15 @@ class CameraWorker(threading.Thread):
         last_connect_attempt = 0.0
         was_online = False
         while self._running.is_set():
+            if not self._enabled.is_set():
+                # paused by user: idle cheaply, thread stays alive
+                time.sleep(0.1)
+                continue
+
             if not self.is_online:
                 now = time.monotonic()
-                if now - last_connect_attempt >= self._cfg.reconnect_interval_s:
+                if now - last_connect_attempt >= self._cfg.reconnect_interval_s \
+                        or last_connect_attempt == 0.0:
                     last_connect_attempt = now
                     was_online = self._try_open(was_online)
                 time.sleep(0.1)
@@ -127,7 +157,13 @@ class CameraWorker(threading.Thread):
         source = self._resolve_source()
         if source == "__synthetic__":
             return self._open_synthetic(was_online)
-        cap = cv2.VideoCapture(source)
+        try:
+            cap = cv2.VideoCapture(source)
+        except Exception as exc:
+            logger.error("VideoCapture raised: %s", exc)
+            self._bus.emit(CAMERA_ERROR, priority=EventPriority.HIGH,
+                           message=f"Camera access error: {exc}")
+            return False
         if not cap.isOpened():
             if was_online:
                 self._bus.emit(CAMERA_DISCONNECTED, priority=EventPriority.HIGH,

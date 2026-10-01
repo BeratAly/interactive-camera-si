@@ -182,8 +182,12 @@ class YuNetDetector(BaseFaceDetector):
             fx, fy, ff, fhh = int(x * sx), int(y * sy), int(fw * sx), int(fh * sy)
             if ff < self._min_face or fh < self._min_face:
                 continue
+            # YuNet landmark rows 4..13: right/left eye, nose, mouth corners.
+            lm = np.array([[row[4 + i * 2] * sx, row[5 + i * 2] * sy]
+                           for i in range(5)], dtype=np.float32)
             faces.append(FaceDetection(x=fx, y=fy, w=ff, h=fhh,
-                                       confidence=round(float(score), 3)))
+                                       confidence=round(float(score), 3),
+                                       landmarks=lm))
         faces.sort(key=lambda f: f.w * f.h, reverse=True)
         return faces
 

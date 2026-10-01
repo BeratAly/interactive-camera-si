@@ -20,6 +20,7 @@ class TrackedFace:
     identity: str
     age_s: float          # seconds since first seen
     lost_for: float       # seconds since last matched detection
+    similarity: float = 0.0   # recognition match score (0 => UNKNOWN)
 
 
 def _iou(a: tuple[float, float, float, float],
@@ -81,6 +82,7 @@ class FaceTracker:
                 tr.box = _ema(tr.box, det_box, self.SMOOTH_ALPHA)
                 tr.confidence = det.confidence
                 tr.identity = det.identity
+                tr.similarity = det.similarity
                 tr.lost_for = 0.0
                 used.add(best_id)
             else:
@@ -89,6 +91,7 @@ class FaceTracker:
                 self._tracks[tid] = TrackedFace(
                     track_id=tid, box=det_box, confidence=det.confidence,
                     identity=det.identity, age_s=0.0, lost_for=0.0,
+                    similarity=det.similarity,
                 )
                 used.add(tid)
 

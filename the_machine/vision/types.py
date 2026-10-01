@@ -18,6 +18,8 @@ class FaceDetection:
     confidence: float = 0.0          # 0..1 — never presented as certainty (§38)
     identity: str = "UNKNOWN"
     track_id: int | None = None      # valid only for this camera session (§10)
+    landmarks: object = None         # optional (5,2) float32 points from YuNet
+    similarity: float = 0.0          # recognition match score when identified
 
     @property
     def cx(self) -> float:
